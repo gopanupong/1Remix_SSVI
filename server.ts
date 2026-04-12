@@ -25,6 +25,28 @@ const supabase = createClient(supabaseUrl, supabaseServiceKey);
 async function initDb() {
   try {
     console.log("Supabase client initialized.");
+    
+    // Ensure 'inspections' bucket exists
+    const { data: buckets, error: listError } = await supabase.storage.listBuckets();
+    if (listError) {
+      console.error("Error listing buckets:", listError);
+    } else {
+      const exists = buckets?.find(b => b.name === 'inspections');
+      if (!exists) {
+        console.log("Creating 'inspections' bucket...");
+        const { error: createError } = await supabase.storage.createBucket('inspections', {
+          public: true,
+          fileSizeLimit: 52428800 // 50MB
+        });
+        if (createError) {
+          console.error("Error creating bucket:", createError);
+        } else {
+          console.log("'inspections' bucket created successfully.");
+        }
+      } else {
+        console.log("'inspections' bucket already exists.");
+      }
+    }
   } catch (err) {
     console.error("Failed to initialize database:", err);
   }
@@ -130,7 +152,12 @@ app.post("/api/storage/upload", upload.single("file"), async (req: any, res: any
         upsert: true
       });
 
-    if (error) throw error;
+    if (error) {
+      if (error.message.includes("Bucket not found")) {
+        throw new Error("ไม่พบ Bucket ชื่อ 'inspections' ใน Supabase Storage กรุณาสร้าง Bucket นี้ใน Supabase Dashboard (ตั้งค่าเป็น Public) หรือรอระบบสร้างให้อัตโนมัติ");
+      }
+      throw error;
+    }
 
     res.json({ success: true, path: filePath });
   } catch (error: any) {
