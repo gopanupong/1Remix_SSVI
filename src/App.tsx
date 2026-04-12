@@ -529,7 +529,11 @@ const InspectionPage = ({ substation, employeeId, onBack, onComplete }: { substa
       const initRes = await fetch('/api/init-upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ substationName: substation.name, timestamp: now.toISOString() })
+        body: JSON.stringify({ 
+          substationName: substation.name, 
+          substationId: substation.id,
+          timestamp: now.toISOString() 
+        })
       });
       
       if (!initRes.ok) {

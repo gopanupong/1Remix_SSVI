@@ -20,11 +20,28 @@ const upload = multer({ storage: multer.memoryStorage() });
 // Supabase Client
 const supabaseUrl = process.env.SUPABASE_URL || "";
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  console.error("CRITICAL: Supabase environment variables are missing!");
+  console.log("Available env keys:", Object.keys(process.env).filter(k => k.includes("SUPABASE")));
+}
+
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
 async function initDb() {
   try {
     console.log("Supabase client initialized.");
+    
+    // Test connection
+    const { data: testData, error: testError } = await supabase.from('inspection_logs').select('id').limit(1);
+    if (testError) {
+      console.error("Supabase Connection Test Failed:", testError.message);
+      if (testError.message.includes("Invalid key")) {
+        console.error("ERROR: The SUPABASE_SERVICE_ROLE_KEY is invalid or not authorized for this URL.");
+      }
+    } else {
+      console.log("Supabase Connection Test Successful.");
+    }
     
     // Ensure 'inspections' bucket exists
     const { data: buckets, error: listError } = await supabase.storage.listBuckets();
@@ -156,6 +173,9 @@ app.post("/api/storage/upload", upload.single("file"), async (req: any, res: any
       if (error.message.includes("Bucket not found")) {
         throw new Error("ไม่พบ Bucket ชื่อ 'inspections' ใน Supabase Storage กรุณาสร้าง Bucket นี้ใน Supabase Dashboard (ตั้งค่าเป็น Public) หรือรอระบบสร้างให้อัตโนมัติ");
       }
+      if (error.message.includes("Invalid key")) {
+        throw new Error("Invalid Key: ตรวจสอบว่า SUPABASE_SERVICE_ROLE_KEY ใน Vercel ถูกต้องและตรงกับโปรเจกต์ Supabase นี้ (ห้ามใช้ Anon Key)");
+      }
       throw error;
     }
 
@@ -168,13 +188,17 @@ app.post("/api/storage/upload", upload.single("file"), async (req: any, res: any
 
 // 1. Initialize Upload: Return folder path for Supabase Storage
 app.post("/api/init-upload", async (req: any, res: any) => {
-  const { substationName, timestamp } = req.body;
+  const { substationName, substationId, timestamp } = req.body;
   try {
     const dateObj = timestamp ? new Date(timestamp) : new Date();
     const dateStr = new Intl.DateTimeFormat("th-TH", {
       day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "Asia/Bangkok"
     }).format(dateObj).replace(/\//g, ""); 
-    const dailyFolderPath = `${substationName}/${substationName}_${dateStr}`;
+    
+    // Use substationId for folder path to avoid Thai character issues in Storage keys
+    const folderBase = substationId || substationName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+    const dailyFolderPath = `${folderBase}/${folderBase}_${dateStr}`;
+    
     res.json({ accessToken: "supabase-auth", folderId: dailyFolderPath });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
@@ -206,14 +230,16 @@ app.post("/api/complete-upload", async (req: any, res: any) => {
 
 // Upload inspection images to Supabase Storage
 app.post("/api/upload-inspection", upload.array("photos"), async (req: any, res: any) => {
-  const { employeeId, substationName, lat, lng, timestamp } = req.body;
+  const { employeeId, substationName, substationId, lat, lng, timestamp } = req.body;
   const files = req.files as any[];
   try {
     const dateObj = timestamp ? new Date(timestamp) : new Date();
     const dateStr = new Intl.DateTimeFormat("th-TH", {
       day: "2-digit", month: "2-digit", year: "2-digit", timeZone: "Asia/Bangkok"
     }).format(dateObj).replace(/\//g, ""); 
-    const dailyFolderPath = `${substationName}/${substationName}_${dateStr}`;
+    
+    const folderBase = substationId || substationName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+    const dailyFolderPath = `${folderBase}/${folderBase}_${dateStr}`;
 
     const uploadPromises = files.map(async (file) => {
       const filePath = `${dailyFolderPath}/${file.originalname}`;
