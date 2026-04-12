@@ -1,0 +1,9 @@
+{
+  "name": "1Remix: Smart Substation Visual Inspection (SSVI)",
+  "description": "ระบบบริหารจัดการและตรวจสอบสภาพกายภาพสถานีไฟฟ้าผ่านเว็บแอปพลิเคชัน พร้อมบันทึกภาพ พิกัด และเวลาจริง",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
