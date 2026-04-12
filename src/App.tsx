@@ -1084,7 +1084,7 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
     fetchHealthIndex();
   }, [selectedMonth, selectedYear]);
 
-  const handleAnalyze = async (substationName: string, force = false) => {
+  const handleAnalyze = async (substationName: string, substationId: string, force = false) => {
     setAnalyzing(substationName);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 600000); // 10 minutes
@@ -1093,7 +1093,7 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
       const res = await fetch('/api/analyze-substation', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ substationName, month: selectedMonth + 1, year: selectedYear, force }),
+        body: JSON.stringify({ substationName, substationId, month: selectedMonth + 1, year: selectedYear, force }),
         signal: controller.signal
       });
       clearTimeout(timeoutId);
@@ -1420,14 +1420,19 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                       </div>
                     </td>
                     <td className="px-6 py-4">
-                      <a 
-                        href={`https://drive.google.com/drive/folders/${log.folder_id}`} 
-                        target="_blank" 
-                        rel="noreferrer"
-                        className="text-violet-600 hover:text-violet-700"
+                      <button 
+                        onClick={() => {
+                          setSelectedSubstationForAnalysis(log.substation_name);
+                          setImagesInFolder([]);
+                          if (log.folder_id) {
+                            fetchImagesInFolder(log.folder_id);
+                          }
+                        }}
+                        className="text-violet-600 hover:text-violet-700 transition-colors"
+                        title="ดูหลักฐานรูปภาพ"
                       >
                         <ImageIcon size={18} />
-                      </a>
+                      </button>
                     </td>
                   </tr>
                 ))}
@@ -1497,7 +1502,7 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
 
                     <div className="grid grid-cols-2 gap-2 mt-2">
                       <Button 
-                        onClick={() => handleAnalyze(sub.name, !!health)} 
+                        onClick={() => handleAnalyze(sub.name, sub.id, !!health)} 
                         disabled={isAnalyzing}
                         className="py-2 text-[10px]"
                         variant={health ? "outline" : "primary"}
@@ -1517,7 +1522,7 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                             const res = await fetch(`/api/analyze-substation`, {
                               method: 'POST',
                               headers: { 'Content-Type': 'application/json' },
-                              body: JSON.stringify({ substationName: sub.name, month: selectedMonth + 1, year: selectedYear, dryRun: true })
+                              body: JSON.stringify({ substationName: sub.name, substationId: sub.id, month: selectedMonth + 1, year: selectedYear, dryRun: true })
                             });
                             const data = await res.json();
                             if (data.folderId) {
@@ -1863,14 +1868,20 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                         </div>
                       </div>
                       {sub.latestLog && (
-                        <a 
-                          href={`https://drive.google.com/drive/folders/${sub.latestLog.folder_id}`} 
-                          target="_blank" 
-                          rel="noreferrer"
+                        <button 
+                          onClick={() => {
+                            setShowInspectedModal(false);
+                            setSelectedSubstationForAnalysis(sub.name);
+                            setImagesInFolder([]);
+                            if (sub.latestLog.folder_id) {
+                              fetchImagesInFolder(sub.latestLog.folder_id);
+                            }
+                          }}
                           className="w-8 h-8 rounded-lg bg-violet-50 text-violet-600 flex items-center justify-center hover:bg-violet-100 transition-colors"
+                          title="ดูหลักฐานรูปภาพ"
                         >
                           <ImageIcon size={16} />
-                        </a>
+                        </button>
                       )}
                     </div>
                   ))}

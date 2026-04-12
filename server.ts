@@ -375,7 +375,7 @@ app.get("/api/dashboard-stats", async (req, res) => {
 });
 
 app.post("/api/analyze-substation", async (req: any, res: any) => {
-  const { substationName, month, year, dryRun, force } = req.body;
+  const { substationName, substationId, month, year, dryRun, force } = req.body;
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "GEMINI_API_KEY missing" });
   try {
@@ -384,7 +384,11 @@ app.post("/api/analyze-substation", async (req: any, res: any) => {
       if (existing) return res.json(existing);
     }
     const dateStr = `${String(month).padStart(2, '0')}${String(year).slice(-2)}`;
-    const folderPath = `${substationName}/${substationName}_${dateStr}`;
+    
+    // Use substationId for folder path to avoid Thai character issues
+    const folderBase = substationId || substationName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
+    const folderPath = `${folderBase}/${folderBase}_${dateStr}`;
+    
     if (dryRun) return res.json({ folderId: folderPath });
 
     const { data: files, error: listError } = await supabase.storage.from('inspections').list(folderPath, { limit: 100 });
