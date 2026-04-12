@@ -43,25 +43,25 @@ async function initDb() {
       console.log("Supabase Connection Test Successful.");
     }
     
-    // Ensure 'inspections' bucket exists
+    // Ensure 'INSPECTIONS' bucket exists
     const { data: buckets, error: listError } = await supabase.storage.listBuckets();
     if (listError) {
       console.error("Error listing buckets:", listError);
     } else {
-      const exists = buckets?.find(b => b.name === 'inspections');
+      const exists = buckets?.find(b => b.name === 'INSPECTIONS');
       if (!exists) {
-        console.log("Creating 'inspections' bucket...");
-        const { error: createError } = await supabase.storage.createBucket('inspections', {
+        console.log("Creating 'INSPECTIONS' bucket...");
+        const { error: createError } = await supabase.storage.createBucket('INSPECTIONS', {
           public: true,
           fileSizeLimit: 52428800 // 50MB
         });
         if (createError) {
           console.error("Error creating bucket:", createError);
         } else {
-          console.log("'inspections' bucket created successfully.");
+          console.log("'INSPECTIONS' bucket created successfully.");
         }
       } else {
-        console.log("'inspections' bucket already exists.");
+        console.log("'INSPECTIONS' bucket already exists.");
       }
     }
   } catch (err) {
@@ -163,7 +163,7 @@ app.post("/api/storage/upload", upload.single("file"), async (req: any, res: any
   try {
     const filePath = `${folderId}/${filename}`;
     const { error } = await supabase.storage
-      .from('inspections')
+      .from('INSPECTIONS')
       .upload(filePath, file.buffer, {
         contentType: file.mimetype,
         upsert: true
@@ -171,7 +171,7 @@ app.post("/api/storage/upload", upload.single("file"), async (req: any, res: any
 
     if (error) {
       if (error.message.includes("Bucket not found")) {
-        throw new Error("ไม่พบ Bucket ชื่อ 'inspections' ใน Supabase Storage กรุณาสร้าง Bucket นี้ใน Supabase Dashboard (ตั้งค่าเป็น Public) หรือรอระบบสร้างให้อัตโนมัติ");
+        throw new Error("ไม่พบ Bucket ชื่อ 'INSPECTIONS' ใน Supabase Storage กรุณาสร้าง Bucket นี้ใน Supabase Dashboard (ตั้งค่าเป็น Public) หรือรอระบบสร้างให้อัตโนมัติ");
       }
       if (error.message.includes("Invalid key")) {
         throw new Error("Invalid Key: ตรวจสอบว่า SUPABASE_SERVICE_ROLE_KEY ใน Vercel ถูกต้องและตรงกับโปรเจกต์ Supabase นี้ (ห้ามใช้ Anon Key)");
@@ -244,7 +244,7 @@ app.post("/api/upload-inspection", upload.array("photos"), async (req: any, res:
     const uploadPromises = files.map(async (file) => {
       const filePath = `${dailyFolderPath}/${file.originalname}`;
       const { error } = await supabase.storage
-        .from('inspections')
+        .from('INSPECTIONS')
         .upload(filePath, file.buffer, { contentType: file.mimetype, upsert: true });
       if (error) throw error;
       return filePath;
@@ -279,13 +279,13 @@ app.post("/api/upload-inspection", upload.array("photos"), async (req: any, res:
 app.get("/api/drive/folder/*", async (req: any, res: any) => {
   const folderPath = req.params[0];
   try {
-    const { data: files, error } = await supabase.storage.from('inspections').list(folderPath);
+    const { data: files, error } = await supabase.storage.from('INSPECTIONS').list(folderPath);
     if (error) throw error;
     const history = await getAnalysisHistory();
     const mergedImages = (files || []).filter(f => f.metadata?.mimetype?.startsWith('image/')).map(img => {
       const filePath = `${folderPath}/${img.name}`;
       const analysis = history.find(h => h.fileId === filePath);
-      const { data: { publicUrl } } = supabase.storage.from('inspections').getPublicUrl(filePath);
+      const { data: { publicUrl } } = supabase.storage.from('INSPECTIONS').getPublicUrl(filePath);
       return {
         id: filePath, name: img.name, mimeType: img.metadata?.mimetype,
         thumbnailLink: publicUrl, webViewLink: publicUrl, analysis: analysis || null
@@ -307,7 +307,7 @@ app.post("/api/analyze-image", async (req: any, res: any) => {
     const existing = history.find(h => h.fileId === fileId);
     if (existing) return res.json(existing);
 
-    const { data, error } = await supabase.storage.from('inspections').download(fileId);
+    const { data, error } = await supabase.storage.from('INSPECTIONS').download(fileId);
     if (error) throw error;
     const base64 = Buffer.from(await data.arrayBuffer()).toString('base64');
 
@@ -383,20 +383,36 @@ app.post("/api/analyze-substation", async (req: any, res: any) => {
       const { data: existing } = await supabase.from('health_index_logs').select('*').eq('substation_name', substationName).eq('month', month).eq('year', year).maybeSingle();
       if (existing) return res.json(existing);
     }
-    const dateStr = `${String(month).padStart(2, '0')}${String(year).slice(-2)}`;
+    const dateStr = new Intl.DateTimeFormat("th-TH", {
+      month: "2-digit", year: "2-digit", timeZone: "Asia/Bangkok"
+    }).format(new Date(year, month - 1)).replace(/\//g, ""); 
     
     // Use substationId for folder path to avoid Thai character issues
     const folderBase = substationId || substationName.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-');
-    const folderPath = `${folderBase}/${folderBase}_${dateStr}`;
     
-    if (dryRun) return res.json({ folderId: folderPath });
+    // For monthly analysis, we need to find all subfolders that match the month/year
+    // Structure: folderBase/folderBase_DDMMYY/
+    const { data: subfolders, error: subError } = await supabase.storage.from('INSPECTIONS').list(folderBase);
+    if (subError) throw subError;
 
-    const { data: files, error: listError } = await supabase.storage.from('inspections').list(folderPath, { limit: 100 });
-    if (listError) throw listError;
-    const images = files.filter(f => f.metadata?.mimetype?.startsWith('image/')) || [];
+    const targetFolders = subfolders
+      .filter(f => f.name.endsWith(dateStr))
+      .map(f => `${folderBase}/${f.name}`);
 
-    if (images.length === 0) {
-      const result = { status: 'Green', findings: [], summary: `ไม่พบข้อมูลการถ่ายภาพของเดือน ${month}/${year}`, folderId: folderPath };
+    if (dryRun) return res.json({ folderId: targetFolders[0] || `${folderBase}/${folderBase}_01${dateStr}` });
+
+    const allImages: any[] = [];
+    for (const fPath of targetFolders) {
+      const { data: files } = await supabase.storage.from('INSPECTIONS').list(fPath, { limit: 100 });
+      if (files) {
+        files.filter(f => f.metadata?.mimetype?.startsWith('image/')).forEach(img => {
+          allImages.push({ ...img, folderPath: fPath });
+        });
+      }
+    }
+
+    if (allImages.length === 0) {
+      const result = { status: 'Green', findings: [], summary: `ไม่พบข้อมูลการถ่ายภาพของเดือน ${month}/${year}`, folderId: targetFolders[0] || `${folderBase}/${folderBase}_01${dateStr}` };
       await supabase.from('health_index_logs').upsert([{ substation_name: substationName, month, year, ...result, analyzed_at: new Date().toISOString() }]);
       return res.json(result);
     }
@@ -404,11 +420,11 @@ app.post("/api/analyze-substation", async (req: any, res: any) => {
     // Simplified monthly analysis: use aggregate of individual results if available, or analyze a few
     const history = await getAnalysisHistory();
     const individualResults = [];
-    for (const img of images.slice(0, 10)) {
-      const filePath = `${folderPath}/${img.name}`;
+    for (const img of allImages.slice(0, 10)) {
+      const filePath = `${img.folderPath}/${img.name}`;
       let analysis = history.find(h => h.fileId === filePath);
       if (!analysis) {
-        const { data } = await supabase.storage.from('inspections').download(filePath);
+        const { data } = await supabase.storage.from('INSPECTIONS').download(filePath);
         if (data) {
           const base64 = Buffer.from(await data.arrayBuffer()).toString('base64');
           const ai = new GoogleGenAI({ apiKey });
@@ -418,7 +434,7 @@ app.post("/api/analyze-substation", async (req: any, res: any) => {
             config: { responseMimeType: "application/json" }
           }) as any;
           analysis = JSON.parse(gen.response.text() || '{}');
-          await saveAnalysisResult({ ...analysis, fileId: filePath, fileName: img.name, folderId: folderPath });
+          await saveAnalysisResult({ ...analysis, fileId: filePath, fileName: img.name, folderId: img.folderPath });
         }
       }
       if (analysis) individualResults.push(analysis);
@@ -432,7 +448,8 @@ app.post("/api/analyze-substation", async (req: any, res: any) => {
       summary: `วิเคราะห์ ${individualResults.length} ภาพ: พบปัญหา ${individualResults.filter(r => r.status === 'Red').length} ภาพ`
     };
     await supabase.from('health_index_logs').upsert([{ substation_name: substationName, month, year, ...final, analyzed_at: new Date().toISOString() }]);
-    res.json({ ...final, folderId: folderPath });
+    const firstFolder = targetFolders[0] || `${folderBase}/${folderBase}_01${dateStr}`;
+    res.json({ ...final, folderId: firstFolder });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }

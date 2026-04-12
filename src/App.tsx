@@ -927,7 +927,7 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
     setSelectedFolderId(folderId);
     setIsFetchingImages(true);
     try {
-      const res = await fetch(`/api/drive/folder/${folderId}/images`);
+      const res = await fetch(`/api/drive/folder/${folderId}`);
       const data = await res.json();
       setImagesInFolder(data);
       updateAnalysisSummary(data);
@@ -1643,7 +1643,7 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                         <div className="aspect-square bg-slate-100 relative">
                           {img.thumbnailLink ? (
                             <img 
-                              src={img.thumbnailLink.replace('=s220', '=s400')} 
+                              src={img.thumbnailLink} 
                               alt={img.name}
                               className="w-full h-full object-cover"
                               referrerPolicy="no-referrer"
