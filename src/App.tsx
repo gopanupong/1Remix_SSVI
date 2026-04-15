@@ -55,11 +55,11 @@ const Card = ({ children, className, onClick }: { children: React.ReactNode; cla
 // --- Pages ---
 
 const CATEGORY_LABELS: {[key: string]: string} = {
-  yard: 'ลานไกไฟฟ้า',
-  roof: 'หลังคาอาคาร',
-  battery: 'แบตเตอรี่',
-  security: 'รปภ.',
   fence: 'รั้วสถานี',
+  battery: 'แบตเตอรี่',
+  yard: 'ลานไก',
+  roof: 'ดาดฟ้า',
+  security: 'รปภ.',
   checklist: 'Check List',
 };
 
@@ -715,11 +715,11 @@ const InspectionPage = ({ substation, employeeId, onBack, onComplete }: { substa
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">จุดตรวจสอบมาตรฐาน (Fixed-Point)</p>
             <div className="space-y-6">
               {[
-                { id: 'yard', label: 'ลานไกไฟฟ้า', desc: 'การจัดการวัชพืช/หญ้า' },
-                { id: 'roof', label: 'หลังคาอาคาร', desc: 'สภาพความสะอาด/รอยรั่ว' },
-                { id: 'battery', label: 'แบตเตอรี่', desc: 'น้ำกลั่นระดับ Upper Level' },
-                { id: 'security', label: 'รปภ.', desc: 'การแต่งกาย' },
-                { id: 'fence', label: 'รั้วสถานี', desc: 'สภาพปกติ' },
+                { id: 'fence', label: 'รั้วสถานี', desc: 'ถ่ายภาพ ให้เห็นรั้วทั้ง 4 ด้าน จะมีอย่างน้อย 4 รูป' },
+                { id: 'battery', label: 'แบตเตอรี่', desc: 'ถ่ายภาพรวม 1 รูป , ถ่ายเจาะจงให้เห็นระดับสูง-ต่ำ น้ำกลั่น อย่างน้อย 1 รูป' },
+                { id: 'yard', label: 'ลานไก', desc: 'ถ่ายภาพรวม , ถ่ายมุมกว้าง ให้เห็นพื้นลานไกทั้งหมด' },
+                { id: 'roof', label: 'ดาดฟ้า', desc: 'ถ้าขึ้นได้, ถ่ายภาพรวม , ถ่ายมุมกว้าง ให้เห็นพื้น ท่อระบายน้ำต่างๆ' },
+                { id: 'security', label: 'รปภ.', desc: 'ถ้าสฟ. มี รปภ. ให้ถ่ายรูปการแต่งกายของ รปภ. (ถ้าไม่มีให้ปิดหัวข้อไว้ ไม่ต้องถ่าย)' },
               ].map((point) => {
                 const isMandatory = ['battery', 'fence'].includes(point.id);
                 return (
@@ -801,7 +801,7 @@ const InspectionPage = ({ substation, employeeId, onBack, onComplete }: { substa
           </section>
 
           <section className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-center mb-1">
               <div className="flex items-center gap-3">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">กระดาษ Check List (A4)</p>
                 <div className="bg-rose-50 border border-rose-100 px-2 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
@@ -813,6 +813,7 @@ const InspectionPage = ({ substation, employeeId, onBack, onComplete }: { substa
                 {checklists.length} แผ่น
               </span>
             </div>
+            <p className="text-[10px] text-slate-500 mb-4">ถ่ายกระดาษ Check List ทุกหน้า</p>
             
             <div className="grid grid-cols-4 gap-2">
               {checklists.map((file, i) => (
@@ -1158,7 +1159,8 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
     }
   };
 
-  const REQUIRED_CATEGORIES = ['yard', 'roof', 'battery', 'security', 'fence', 'checklist'];
+  const MANDATORY_CATEGORIES = ['fence', 'battery', 'checklist'];
+  const ALL_CATEGORIES = ['fence', 'battery', 'yard', 'roof', 'security', 'checklist'];
 
   const substationCompletionMap = new Map<string, Set<string>>();
   stats.recent.forEach(log => {
@@ -1167,7 +1169,7 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
       substationCompletionMap.set(name, new Set());
     }
     (log.categories || []).forEach(cat => {
-      if (REQUIRED_CATEGORIES.includes(cat)) {
+      if (ALL_CATEGORIES.includes(cat)) {
         substationCompletionMap.get(name)?.add(cat);
       }
     });
@@ -1176,13 +1178,13 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
   const pendingSubstations = SUBSTATIONS.filter(sub => {
     const name = (sub.name || "").trim();
     const cats = substationCompletionMap.get(name);
-    return !cats || cats.size < REQUIRED_CATEGORIES.length;
+    return !cats || !MANDATORY_CATEGORIES.every(cat => cats.has(cat));
   });
 
   const inspectedSubstations = SUBSTATIONS.filter(sub => {
     const name = (sub.name || "").trim();
     const cats = substationCompletionMap.get(name);
-    return cats && cats.size >= REQUIRED_CATEGORIES.length;
+    return cats && MANDATORY_CATEGORIES.every(cat => cats.has(cat));
   }).map(sub => {
     // Find the latest inspection for this sub
     const latestLog = stats.recent.find(log => (log.substation_name || "").trim() === (sub.name || "").trim());
@@ -1349,11 +1351,11 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                 {SUBSTATIONS.map(sub => {
                   const name = (sub.name || "").trim();
                   const cats = substationCompletionMap.get(name) || new Set();
-                  const progress = cats.size;
-                  const isDone = progress >= REQUIRED_CATEGORIES.length;
+                  const mandatoryDone = MANDATORY_CATEGORIES.filter(c => cats.has(c)).length;
+                  const isDone = mandatoryDone === MANDATORY_CATEGORIES.length;
                   
                   // Only show stations that have at least one log in the current month
-                  if (progress === 0 && !stats.recent.some(l => (l.substation_name || "").trim() === name)) return null;
+                  if (cats.size === 0 && !stats.recent.some(l => (l.substation_name || "").trim() === name)) return null;
 
                   return (
                     <tr key={sub.id} className="hover:bg-slate-50/50 transition-colors">
@@ -1363,14 +1365,14 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                           <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden min-w-[100px]">
                             <motion.div 
                               initial={{ width: 0 }}
-                              animate={{ width: `${(progress / REQUIRED_CATEGORIES.length) * 100}%` }}
+                              animate={{ width: `${(mandatoryDone / MANDATORY_CATEGORIES.length) * 100}%` }}
                               className={cn(
                                 "h-full rounded-full",
                                 isDone ? "bg-emerald-500" : "bg-violet-500"
                               )}
                             />
                           </div>
-                          <span className="text-xs font-bold text-slate-500">{progress}/{REQUIRED_CATEGORIES.length}</span>
+                          <span className="text-xs font-bold text-slate-500">{mandatoryDone}/{MANDATORY_CATEGORIES.length}</span>
                         </div>
                       </td>
                       <td className="px-6 py-4">
@@ -1425,28 +1427,33 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                     <td className="px-6 py-4">
                       <div className="flex flex-col gap-1">
                         <div className="flex items-center gap-2">
-                          <span className={cn(
-                            "inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-1 rounded-full",
-                            (log.categories?.length || 0) >= REQUIRED_CATEGORIES.length 
-                              ? "bg-emerald-50 text-emerald-600" 
-                              : "bg-amber-50 text-amber-600"
-                          )}>
-                            <CheckCircle2 size={12} /> {(log.categories?.length || 0) >= REQUIRED_CATEGORIES.length ? 'เรียบร้อย' : 'กำลังดำเนินการ'}
-                          </span>
-                          <span className="text-[10px] font-bold text-slate-400">
-                            ({log.categories?.length || 0}/{REQUIRED_CATEGORIES.length})
-                          </span>
+                          {(() => {
+                            const mandatoryInLog = MANDATORY_CATEGORIES.filter(c => log.categories?.includes(c)).length;
+                            const isLogDone = mandatoryInLog === MANDATORY_CATEGORIES.length;
+                            return (
+                              <>
+                                <span className={cn(
+                                  "inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-1 rounded-full",
+                                  isLogDone 
+                                    ? "bg-emerald-50 text-emerald-600" 
+                                    : "bg-amber-50 text-amber-600"
+                                )}>
+                                  <CheckCircle2 size={12} /> {isLogDone ? 'เรียบร้อย' : 'กำลังดำเนินการ'}
+                                </span>
+                                <span className="text-[10px] font-bold text-slate-400">
+                                  ({mandatoryInLog}/{MANDATORY_CATEGORIES.length})
+                                </span>
+                              </>
+                            );
+                          })()}
                         </div>
-                        {log.categories && log.categories.length < REQUIRED_CATEGORIES.length && (
+                        {log.categories && MANDATORY_CATEGORIES.filter(c => !log.categories.includes(c)).length > 0 && (
                           <div className="flex flex-wrap gap-1 max-w-[150px]">
-                            {REQUIRED_CATEGORIES.filter(cat => !log.categories.includes(cat)).slice(0, 2).map(cat => (
-                              <span key={cat} className="text-[7px] text-slate-400 bg-slate-100 px-1 rounded">
+                            {MANDATORY_CATEGORIES.filter(cat => !log.categories.includes(cat)).map(cat => (
+                              <span key={cat} className="text-[7px] text-rose-400 bg-rose-50 px-1 rounded border border-rose-100">
                                 {CATEGORY_LABELS[cat] || cat}
                               </span>
                             ))}
-                            {REQUIRED_CATEGORIES.length - log.categories.length > 2 && (
-                              <span className="text-[7px] text-slate-400 italic">...</span>
-                            )}
                           </div>
                         )}
                       </div>
@@ -1801,7 +1808,8 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {pendingSubstations.map((sub, idx) => {
                     const covered = substationCompletionMap.get(sub.name) || new Set();
-                    const missing = REQUIRED_CATEGORIES.filter(cat => !covered.has(cat));
+                    const missingMandatory = MANDATORY_CATEGORIES.filter(cat => !covered.has(cat));
+                    const mandatoryDone = MANDATORY_CATEGORIES.length - missingMandatory.length;
                     
                     return (
                       <div key={sub.id} className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col gap-3">
@@ -1812,14 +1820,15 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                           <div className="flex-1">
                             <h5 className="font-bold text-slate-800 text-sm">{sub.name}</h5>
                             <p className="text-[10px] text-slate-400 uppercase font-bold tracking-tighter">
-                              {covered.size === 0 ? 'ยังไม่มีการตรวจสอบ' : `ดำเนินการแล้ว ${covered.size}/${REQUIRED_CATEGORIES.length} หัวข้อ`}
+                              {covered.size === 0 ? 'ยังไม่มีการตรวจสอบ' : `ดำเนินการแล้ว ${mandatoryDone}/${MANDATORY_CATEGORIES.length} หัวข้อหลัก`}
                             </p>
                           </div>
                         </div>
                         
-                        {missing.length > 0 && (
+                        {missingMandatory.length > 0 && (
                           <div className="flex flex-wrap gap-1">
-                            {missing.map(cat => (
+                            <p className="text-[8px] text-slate-400 w-full mb-1">หัวข้อหลักที่ขาด:</p>
+                            {missingMandatory.map(cat => (
                               <span key={cat} className="text-[8px] font-bold px-1.5 py-0.5 bg-rose-50 text-rose-500 rounded-md border border-rose-100">
                                 {CATEGORY_LABELS[cat] || cat}
                               </span>

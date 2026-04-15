@@ -358,7 +358,7 @@ app.get("/api/dashboard-stats", async (req, res) => {
       return (!targetMonth || d.getMonth() + 1 === targetMonth) && (!targetYear || d.getFullYear() === targetYear);
     });
 
-    const REQUIRED = ['yard', 'roof', 'battery', 'security', 'fence', 'checklist'];
+    const MANDATORY = ['fence', 'battery', 'checklist'];
     const completion = new Map<string, Set<string>>();
     filteredLogs.forEach(log => {
       if (!completion.has(log.substation_name)) completion.set(log.substation_name, new Set());
@@ -366,7 +366,9 @@ app.get("/api/dashboard-stats", async (req, res) => {
     });
 
     let completedCount = 0;
-    completion.forEach(cats => { if (cats.size >= REQUIRED.length) completedCount++; });
+    completion.forEach(cats => { 
+      if (MANDATORY.every(m => cats.has(m))) completedCount++; 
+    });
 
     res.json({ total: completedCount, totalSubmissions: filteredLogs.length, recent: filteredLogs });
   } catch (error: any) {
