@@ -1211,37 +1211,6 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
           </div>
 
           <div className="flex items-center gap-2">
-            <a 
-              href="/api/auth/google" 
-              target="_blank" 
-              rel="noopener noreferrer"
-              className={cn(
-                "flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm",
-                driveStatus?.connected 
-                  ? "bg-emerald-50 border border-emerald-100 text-emerald-600 hover:bg-emerald-100" 
-                  : "bg-white border border-slate-200 text-slate-600 hover:bg-slate-50"
-              )}
-            >
-              <div className={cn(
-                "w-5 h-5 rounded-md flex items-center justify-center",
-                driveStatus?.connected ? "bg-emerald-500" : "bg-slate-200"
-              )}>
-                <CheckCircle2 size={12} className="text-white" />
-              </div>
-              {driveStatus?.connected ? "เชื่อมต่อ Supabase แล้ว" : "เชื่อมต่อ Supabase"}
-            </a>
-            
-            {driveStatus?.connected && (
-              <button 
-                onClick={testSupabaseConnection}
-                disabled={testingConnection}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 hover:bg-slate-50 transition-all shadow-sm disabled:opacity-50"
-              >
-                {testingConnection ? <Loader2 size={16} className="animate-spin" /> : <ClipboardCheck size={16} />}
-                ทดสอบการเชื่อมต่อ
-              </button>
-            )}
-            
             <div className="flex bg-slate-200 p-1 rounded-xl">
               <button 
                 onClick={() => setActiveTab('progress')}
@@ -1827,7 +1796,7 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                         
                         {missingMandatory.length > 0 && (
                           <div className="flex flex-wrap gap-1">
-                            <p className="text-[8px] text-slate-400 w-full mb-1">หัวข้อหลักที่ขาด:</p>
+                            <p className="text-[8px] text-slate-400 w-full mb-1">หัวข้อบังคับที่ยังไม่ได้ดำเนินการ:</p>
                             {missingMandatory.map(cat => (
                               <span key={cat} className="text-[8px] font-bold px-1.5 py-0.5 bg-rose-50 text-rose-500 rounded-md border border-rose-100">
                                 {CATEGORY_LABELS[cat] || cat}
