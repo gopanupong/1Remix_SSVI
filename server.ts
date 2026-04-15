@@ -253,7 +253,7 @@ app.post("/api/upload-inspection", upload.array("photos"), async (req: any, res:
 
     const categoriesFromFiles = new Set(files.map(f => {
       const name = f.originalname.toLowerCase();
-      const cats = ['building', 'yard', 'roof', 'annunciation', 'battery', 'grounding', 'security', 'fence', 'lighting', 'checklist'];
+      const cats = ['yard', 'roof', 'battery', 'security', 'fence', 'checklist'];
       return cats.find(c => name.includes(c));
     }).filter(Boolean));
 
@@ -358,7 +358,7 @@ app.get("/api/dashboard-stats", async (req, res) => {
       return (!targetMonth || d.getMonth() + 1 === targetMonth) && (!targetYear || d.getFullYear() === targetYear);
     });
 
-    const REQUIRED = ['building', 'yard', 'roof', 'annunciation', 'battery', 'grounding', 'security', 'fence', 'lighting', 'checklist'];
+    const REQUIRED = ['yard', 'roof', 'battery', 'security', 'fence', 'checklist'];
     const completion = new Map<string, Set<string>>();
     filteredLogs.forEach(log => {
       if (!completion.has(log.substation_name)) completion.set(log.substation_name, new Set());

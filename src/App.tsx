@@ -55,15 +55,11 @@ const Card = ({ children, className, onClick }: { children: React.ReactNode; cla
 // --- Pages ---
 
 const CATEGORY_LABELS: {[key: string]: string} = {
-  building: 'อาคารควบคุม',
   yard: 'ลานไกไฟฟ้า',
   roof: 'หลังคาอาคาร',
-  annunciation: 'Annunciation',
   battery: 'แบตเตอรี่',
-  grounding: 'กราวด์ทองแดง',
   security: 'รปภ.',
   fence: 'รั้วสถานี',
-  lighting: 'ระบบแสงสว่าง',
   checklist: 'Check List',
 };
 
@@ -299,15 +295,19 @@ const SelectionPage = ({ onSelect, onLogout }: { onSelect: (sub: typeof SUBSTATI
 
 const InspectionPage = ({ substation, employeeId, onBack, onComplete }: { substation: typeof SUBSTATIONS[0]; employeeId: string; onBack: () => void; onComplete: () => void }) => {
   const [photos, setPhotos] = useState<{ [key: string]: { file: File; comment: string }[] }>({
-    building: [],
     yard: [],
     roof: [],
-    annunciation: [],
     battery: [],
-    grounding: [],
     security: [],
     fence: [],
-    lighting: [],
+  });
+  const [enabledCategories, setEnabledCategories] = useState<{[key: string]: boolean}>({
+    yard: true,
+    roof: true,
+    battery: true,
+    security: true,
+    fence: true,
+    checklist: true,
   });
   const [checklists, setChecklists] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
@@ -570,10 +570,12 @@ const InspectionPage = ({ substation, employeeId, onBack, onComplete }: { substa
       };
 
       // Process and Upload Fixed-Point photos
-      const photoEntries = Object.entries(photos) as [string, {file: File, comment: string}[]][];
+      const photoEntries = (Object.entries(photos) as [string, {file: File, comment: string}[]][])
+        .filter(([key]) => enabledCategories[key]);
+      
       let totalPhotos = 0;
       photoEntries.forEach(([_, items]) => totalPhotos += items.length);
-      totalPhotos += checklists.length;
+      if (enabledCategories.checklist) totalPhotos += checklists.length;
       
       let currentCount = 0;
 
@@ -592,16 +594,18 @@ const InspectionPage = ({ substation, employeeId, onBack, onComplete }: { substa
       }
       
       // Process and Upload Checklists
-      if (checklists.length > 0) categoriesInSubmission.add('checklist');
-      for (let i = 0; i < checklists.length; i++) {
-        currentCount++;
-        setStatus(`กำลังประมวลผลรูปที่ ${currentCount}/${totalPhotos}...`);
-        
-        const processedBlob = await addTimestampToImage(checklists[i], '');
-        const processedFile = new File([processedBlob], 'temp.jpg', { type: 'image/jpeg' });
-        const compressedBlob = await imageCompression(processedFile, compressionOptions);
-        
-        await uploadToStorage(compressedBlob, `checklist_${i + 1}_${nameSuffix}.jpg`);
+      if (enabledCategories.checklist && checklists.length > 0) {
+        categoriesInSubmission.add('checklist');
+        for (let i = 0; i < checklists.length; i++) {
+          currentCount++;
+          setStatus(`กำลังประมวลผลรูปที่ ${currentCount}/${totalPhotos}...`);
+          
+          const processedBlob = await addTimestampToImage(checklists[i], '');
+          const processedFile = new File([processedBlob], 'temp.jpg', { type: 'image/jpeg' });
+          const compressedBlob = await imageCompression(processedFile, compressionOptions);
+          
+          await uploadToStorage(compressedBlob, `checklist_${i + 1}_${nameSuffix}.jpg`);
+        }
       }
 
       // 3. Finalize: Log to DB and Sheets
@@ -635,7 +639,10 @@ const InspectionPage = ({ substation, employeeId, onBack, onComplete }: { substa
     }
   };
 
-  const isReady = (Object.values(photos) as {file: File, comment: string}[][]).some(items => items.length > 0) || checklists.length > 0;
+  const isReady = 
+    photos.battery.length > 0 && 
+    photos.fence.length > 0 && 
+    checklists.length > 0;
 
   return (
     <div className="min-h-screen bg-violet-50 p-6 pb-32">
@@ -708,80 +715,105 @@ const InspectionPage = ({ substation, employeeId, onBack, onComplete }: { substa
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4">จุดตรวจสอบมาตรฐาน (Fixed-Point)</p>
             <div className="space-y-6">
               {[
-                { id: 'building', label: 'อาคารควบคุม', desc: 'ความสะอาดภายใน/ภายนอก' },
                 { id: 'yard', label: 'ลานไกไฟฟ้า', desc: 'การจัดการวัชพืช/หญ้า' },
                 { id: 'roof', label: 'หลังคาอาคาร', desc: 'สภาพความสะอาด/รอยรั่ว' },
-                { id: 'annunciation', label: 'Annunciation', desc: 'ไฟแจ้งเตือน CSCS/SCPS/หน้าตู้' },
                 { id: 'battery', label: 'แบตเตอรี่', desc: 'น้ำกลั่นระดับ Upper Level' },
-                { id: 'grounding', label: 'กราวด์ทองแดง', desc: 'เชื่อมภายในอาคาร (ทุกชั้น)' },
                 { id: 'security', label: 'รปภ.', desc: 'การแต่งกาย' },
                 { id: 'fence', label: 'รั้วสถานี', desc: 'สภาพปกติ' },
-                { id: 'lighting', label: 'ระบบแสงสว่าง', desc: 'ภายในและภายนอกอาคาร' },
-              ].map((point) => (
-                <div key={point.id} className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h4 className="font-bold text-slate-800 text-sm">{point.label}</h4>
-                      <p className="text-[10px] text-slate-500">{point.desc}</p>
-                    </div>
-                    <label className="bg-violet-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 active:scale-95 transition-all cursor-pointer">
-                      <Camera size={14} /> ถ่ายภาพ
-                      <input 
-                        type="file" 
-                        accept="image/*" 
-                        capture="environment" 
-                        className="hidden" 
-                        onChange={(e) => onFileChange(e, point.id)} 
-                      />
-                    </label>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 gap-4">
-                    {photos[point.id].map((item, i) => (
-                      <div key={i} className="bg-white p-3 rounded-2xl border border-slate-100 shadow-sm space-y-3">
-                        <div className="aspect-video bg-slate-200 rounded-xl overflow-hidden relative group">
-                          <img src={URL.createObjectURL(item.file)} className="w-full h-full object-cover" />
-                          <button 
-                            onClick={() => setPhotos(prev => ({
-                              ...prev,
-                              [point.id]: prev[point.id].filter((_, idx) => idx !== i)
-                            }))}
-                            className="absolute top-2 right-2 w-8 h-8 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-lg"
-                          >
-                            ×
-                          </button>
-                        </div>
-                        <div className="space-y-1">
-                          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">คำอธิบายเพิ่มเติม (ถ้ามี)</p>
-                          <input 
-                            type="text"
-                            placeholder="ระบุรายละเอียดของภาพ..."
-                            value={item.comment}
-                            onChange={(e) => handleCommentChange(point.id, i, e.target.value)}
-                            className="w-full bg-slate-50 border-none rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-violet-500 outline-none"
-                          />
-                        </div>
+              ].map((point) => {
+                const isMandatory = ['battery', 'fence'].includes(point.id);
+                return (
+                  <div key={point.id} className={`p-4 rounded-2xl transition-all duration-300 border ${enabledCategories[point.id] ? 'bg-white border-slate-100 shadow-sm opacity-100' : 'bg-slate-50/50 border-transparent opacity-60'}`}>
+                    <div className="flex justify-between items-start">
+                      <div className="space-y-1">
+                        <h4 className="font-bold text-slate-800 text-sm">
+                          {point.label}
+                        </h4>
+                        <p className="text-[10px] text-slate-500 leading-tight">{point.desc}</p>
                       </div>
-                    ))}
-                    {photos[point.id].length === 0 && (
-                      <div className="py-8 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400">
-                        <Camera size={24} className="mb-2 opacity-30" />
-                        <span className="text-xs font-bold">ยังไม่มีรูปภาพ</span>
+                      <div className="flex flex-col items-end gap-3">
+                        {/* Toggle Switch - Only show if not mandatory */}
+                        {isMandatory ? (
+                          <div className="bg-rose-50 border border-rose-100 px-2 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
+                            <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                            <span className="text-[9px] font-black text-rose-600 uppercase tracking-wider">จำเป็น</span>
+                          </div>
+                        ) : (
+                          <div className={`flex items-center gap-2.5 px-2 py-1 rounded-full border transition-all duration-300 ${enabledCategories[point.id] ? 'bg-emerald-50 border-emerald-100 shadow-sm' : 'bg-slate-100 border-slate-200'}`}>
+                            <span className={`text-[8px] font-black transition-colors ${enabledCategories[point.id] ? 'text-emerald-600' : 'text-slate-400'}`}>
+                              {enabledCategories[point.id] ? 'เปิด' : 'ปิด'}
+                            </span>
+                            <button 
+                              onClick={() => setEnabledCategories(prev => ({ ...prev, [point.id]: !prev[point.id] }))}
+                              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-all duration-300 focus:outline-none shadow-inner ${enabledCategories[point.id] ? 'bg-emerald-500' : 'bg-slate-300'}`}
+                            >
+                              <span className={`inline-block h-3 w-3 transform rounded-full bg-white shadow-md transition-transform duration-300 ${enabledCategories[point.id] ? 'translate-x-5' : 'translate-x-1'}`} />
+                            </button>
+                          </div>
+                        )}
+
+                        {enabledCategories[point.id] && (
+                          <label className="bg-violet-600 text-white px-3 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 active:scale-95 transition-all cursor-pointer shadow-md shadow-violet-100">
+                            <Camera size={14} /> ถ่ายภาพ
+                            <input 
+                              type="file" 
+                              accept="image/*" 
+                              capture="environment" 
+                              className="hidden" 
+                              onChange={(e) => onFileChange(e, point.id)} 
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                    
+                    {enabledCategories[point.id] && photos[point.id].length > 0 && (
+                      <div className="mt-4 grid grid-cols-1 gap-4">
+                        {photos[point.id].map((item, i) => (
+                          <div key={i} className="bg-slate-50 p-2 rounded-xl border border-slate-100 space-y-2">
+                            <div className="aspect-video bg-slate-200 rounded-lg overflow-hidden relative group">
+                              <img src={URL.createObjectURL(item.file)} className="w-full h-full object-cover" />
+                              <button 
+                                onClick={() => setPhotos(prev => ({
+                                  ...prev,
+                                  [point.id]: prev[point.id].filter((_, idx) => idx !== i)
+                                }))}
+                                className="absolute top-2 right-2 w-7 h-7 bg-rose-500 text-white rounded-full flex items-center justify-center shadow-lg text-sm"
+                              >
+                                ×
+                              </button>
+                            </div>
+                            <input 
+                              type="text"
+                              placeholder="ระบุรายละเอียดของภาพ..."
+                              value={item.comment}
+                              onChange={(e) => handleCommentChange(point.id, i, e.target.value)}
+                              className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-[10px] focus:ring-2 focus:ring-violet-500 outline-none"
+                            />
+                          </div>
+                        ))}
                       </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
 
-          <section>
+          <section className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm">
             <div className="flex justify-between items-center mb-4">
-              <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">กระดาษ Check List (A4)</p>
+              <div className="flex items-center gap-3">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">กระดาษ Check List (A4)</p>
+                <div className="bg-rose-50 border border-rose-100 px-2 py-1 rounded-lg flex items-center gap-1.5 shadow-sm">
+                  <div className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                  <span className="text-[9px] font-black text-rose-600 uppercase tracking-wider">จำเป็น</span>
+                </div>
+              </div>
               <span className="text-xs font-bold text-violet-600 bg-violet-50 px-2 py-1 rounded-full">
                 {checklists.length} แผ่น
               </span>
             </div>
+            
             <div className="grid grid-cols-4 gap-2">
               {checklists.map((file, i) => (
                 <div key={i} className="aspect-square bg-slate-200 rounded-lg overflow-hidden relative group">
@@ -794,8 +826,8 @@ const InspectionPage = ({ substation, employeeId, onBack, onComplete }: { substa
                   </button>
                 </div>
               ))}
-              <label className="aspect-square border-2 border-dashed border-slate-300 rounded-lg flex flex-col items-center justify-center text-slate-400 hover:border-violet-500 hover:text-violet-500 transition-all cursor-pointer">
-                <Camera size={20} />
+              <label className="aspect-square border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-400 hover:border-violet-500 hover:text-violet-500 hover:bg-violet-50 transition-all cursor-pointer group">
+                <Camera size={20} className="group-hover:scale-110 transition-transform" />
                 <span className="text-[8px] font-bold mt-1">ถ่ายภาพ</span>
                 <input 
                   type="file" 
@@ -1126,7 +1158,7 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
     }
   };
 
-  const REQUIRED_CATEGORIES = ['building', 'yard', 'roof', 'annunciation', 'battery', 'grounding', 'security', 'fence', 'lighting', 'checklist'];
+  const REQUIRED_CATEGORIES = ['yard', 'roof', 'battery', 'security', 'fence', 'checklist'];
 
   const substationCompletionMap = new Map<string, Set<string>>();
   stats.recent.forEach(log => {
