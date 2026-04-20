@@ -15,7 +15,8 @@ import {
   FileText,
   Plus,
   MonitorOff,
-  Clock
+  Clock,
+  RefreshCw
 } from 'lucide-react';
 import { cn, SUBSTATIONS, InspectionLog } from './constants';
 import { format } from 'date-fns';
@@ -911,8 +912,10 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [showPendingModal, setShowPendingModal] = useState(false);
   const [showInspectedModal, setShowInspectedModal] = useState(false);
-  const [activeTab, setActiveTab] = useState<'progress' | 'health'>('progress');
+  const [activeTab, setActiveTab] = useState<'progress' | 'health' | 'history'>('progress');
   const [healthIndex, setHealthIndex] = useState<any[]>([]);
+  const [analysisHistory, setAnalysisHistory] = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [analyzing, setAnalyzing] = useState<string | null>(null);
   const [selectedSubstationForAnalysis, setSelectedSubstationForAnalysis] = useState<string | null>(null);
   const [imagesInFolder, setImagesInFolder] = useState<any[]>([]);
@@ -1106,6 +1109,17 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
       .then(data => setHealthIndex(data));
   };
 
+  const fetchAnalysisHistory = () => {
+    setLoadingHistory(true);
+    fetch('/api/analysis-results?limit=100')
+      .then(res => res.json())
+      .then(data => {
+        setAnalysisHistory(data);
+        setLoadingHistory(false);
+      })
+      .catch(() => setLoadingHistory(false));
+  };
+
   useEffect(() => {
     setLoading(true);
     fetch(`/api/dashboard-stats?month=${selectedMonth + 1}&year=${selectedYear}`)
@@ -1115,6 +1129,7 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
         setLoading(false);
       });
     fetchHealthIndex();
+    fetchAnalysisHistory();
   }, [selectedMonth, selectedYear]);
 
   const handleAnalyze = async (substationName: string, substationId: string, force = false) => {
@@ -1229,6 +1244,18 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                 )}
               >
                 Health Index
+              </button>
+              <button 
+                onClick={() => {
+                  setActiveTab('history');
+                  fetchAnalysisHistory();
+                }}
+                className={cn(
+                  "px-4 py-2 rounded-lg text-xs font-bold transition-all",
+                  activeTab === 'history' ? "bg-white text-violet-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
+                )}
+              >
+                ประวัติวิเคราะห์
               </button>
             </div>
           </div>
@@ -1550,6 +1577,102 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                 </div>
               );
             })}
+          </div>
+        )}
+
+        {activeTab === 'history' && (
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
+              <h3 className="font-bold text-slate-900">ประวัติการวิเคราะห์รูปภาพด้วย AI</h3>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={fetchAnalysisHistory}
+                disabled={loadingHistory}
+                className="gap-2"
+              >
+                <RefreshCw size={14} className={loadingHistory ? "animate-spin" : ""} />
+                รีเฟรชข้อมูล
+              </Button>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 text-slate-400 text-[10px] font-bold uppercase tracking-widest">
+                    <th className="px-6 py-3">ภาพ</th>
+                    <th className="px-6 py-3">ชื่อสฟ. / โฟลเดอร์</th>
+                    <th className="px-6 py-3">วันเวลาที่วิเคราะห์</th>
+                    <th className="px-6 py-3">สถานะ AI</th>
+                    <th className="px-6 py-3">รายละเอียด (Summary)</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loadingHistory && analysisHistory.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic text-sm">
+                        <Loader2 className="animate-spin inline-block mr-2" size={16} />
+                        กำลังโหลดประวัติ...
+                      </td>
+                    </tr>
+                  ) : analysisHistory.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic text-sm">
+                        ยังไม่มีประวัติการวิเคราะห์รูปภาพ
+                      </td>
+                    </tr>
+                  ) : (
+                    analysisHistory.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 relative overflow-hidden">
+                            <ImageIcon size={20} />
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="max-w-[200px]">
+                            <p className="font-bold text-slate-800 text-sm truncate" title={item.fileName}>
+                              {item.fileName}
+                            </p>
+                            <p className="text-[10px] text-slate-400 truncate" title={item.folderId}>
+                              {item.folderId}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-xs text-slate-500 font-mono">
+                          {format(new Date(item.analyzedAt), 'dd/MM/yy HH:mm', { locale: th })}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={cn(
+                            "text-[10px] font-bold px-2 py-1 rounded-full uppercase",
+                            item.status === 'Red' ? "bg-rose-100 text-rose-600" : "bg-emerald-100 text-emerald-600"
+                          )}>
+                            {item.status === 'Red' ? "พบปัญหา" : "ปกติ"}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-xs text-slate-600 max-w-[300px]" title={item.summary}>
+                            {item.summary}
+                          </p>
+                          {item.findings && item.findings.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {item.findings.map((f: string, i: number) => (
+                                <span key={i} className="text-[8px] font-bold bg-slate-100 text-slate-500 px-1 rounded">
+                                  {f}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <div className="p-4 bg-slate-50 border-t border-slate-100 text-center">
+              <p className="text-[10px] text-slate-400 uppercase font-bold">แสดงผลการวิเคราะห์ล่าสุด {analysisHistory.length} รายการ</p>
+            </div>
           </div>
         )}
       </div>

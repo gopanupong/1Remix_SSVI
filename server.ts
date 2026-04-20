@@ -94,11 +94,34 @@ async function generateContentWithRetry(ai: GoogleGenAI, params: any, maxRetries
 }
 
 // Supabase Helpers
-async function getAnalysisHistory() {
+async function getAnalysisForFile(fileId: string) {
   const { data, error } = await supabase
     .from('analysis_results')
     .select('*')
-    .order('analyzed_at', { ascending: false });
+    .eq('file_path', fileId)
+    .maybeSingle();
+    
+  if (error) {
+    console.error("Error fetching analysis for file:", error);
+    return null;
+  }
+  return data ? {
+    fileId: data.file_path,
+    fileName: data.file_name,
+    folderId: data.folder_path,
+    status: data.status,
+    findings: data.findings || [],
+    summary: data.summary,
+    analyzedAt: data.analyzed_at
+  } : null;
+}
+
+async function getAnalysisHistory(limit = 100) {
+  const { data, error } = await supabase
+    .from('analysis_results')
+    .select('*')
+    .order('analyzed_at', { ascending: false })
+    .limit(limit);
   
   if (error) {
     console.error("Error fetching analysis history:", error);
@@ -303,8 +326,7 @@ app.post("/api/analyze-image", async (req: any, res: any) => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return res.status(500).json({ error: "GEMINI_API_KEY missing" });
   try {
-    const history = await getAnalysisHistory();
-    const existing = history.find(h => h.fileId === fileId);
+    const existing = await getAnalysisForFile(fileId);
     if (existing) return res.json(existing);
 
     const { data, error } = await supabase.storage.from('INSPECTIONS').download(fileId);
@@ -465,6 +487,16 @@ app.get("/api/health-index", async (req, res) => {
     res.json(data);
   } catch (err) {
     res.status(500).json({ error: "Failed to fetch health index" });
+  }
+});
+
+app.get("/api/analysis-results", async (req, res) => {
+  const limit = parseInt(req.query.limit as string) || 50;
+  try {
+    const history = await getAnalysisHistory(limit);
+    res.json(history);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
   }
 });
 
