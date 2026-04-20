@@ -105,6 +105,9 @@ async function getAnalysisForFile(fileId: string) {
     console.error("Error fetching analysis for file:", error);
     return null;
   }
+  if (data) {
+    console.log(`[Cache] Hit found for file: ${fileId}`);
+  }
   return data ? {
     fileId: data.file_path,
     fileName: data.file_name,
@@ -163,20 +166,29 @@ async function getAnalysisHistory(limit = 100) {
 }
 
 async function saveAnalysisResult(result: any) {
+  // Ensure we have a valid status and summary
+  const status = result.status || 'Green';
+  const summary = result.summary || (status === 'Green' ? 'ตรวจสอบแล้ว ไม่พบปัญหาร้ายแรง' : 'พบประเด็นที่ต้องตรวจสอบเพิ่มเติม');
+  const findings = Array.isArray(result.findings) ? result.findings : [];
+
+  console.log(`[Cache] Saving analysis for: ${result.fileName} in ${result.folderId}`);
+
   const { error } = await supabase
     .from('analysis_results')
     .upsert([{
       file_path: result.fileId,
       file_name: result.fileName,
       folder_path: result.folderId,
-      status: result.status,
-      findings: result.findings,
-      summary: result.summary,
+      status: status,
+      findings: findings,
+      summary: summary,
       analyzed_at: new Date().toISOString()
     }], { onConflict: 'file_path' });
   
   if (error) {
-    console.error("Error saving analysis result:", error);
+    console.error("[Cache] Error saving analysis result:", error.message, error.details);
+  } else {
+    console.log(`[Cache] Successfully saved analysis for: ${result.fileName}`);
   }
 }
 

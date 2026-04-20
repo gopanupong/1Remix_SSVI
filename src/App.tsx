@@ -977,14 +977,18 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
   const updateAnalysisSummary = (images: any[]) => {
     const summary = images.reduce((acc, img) => {
       acc.total++;
-      if (img.analysis && !img.analysis.error) {
-        if (img.analysis.status === 'Green') {
+      const analysis = img.analysis;
+      if (analysis && !analysis.error) {
+        const status = (analysis.status || '').toLowerCase();
+        if (status === 'green') {
           acc.clean++;
-        } else if (img.analysis.status === 'Red') {
+        } else if (status === 'red') {
           acc.issues++;
-          if (img.analysis.findings && Array.isArray(img.analysis.findings)) {
-            if (img.analysis.findings.includes('Weed')) acc.weeds++;
-            if (img.analysis.findings.includes('Bird Droppings')) acc.birdDroppings++;
+          if (analysis.findings && Array.isArray(analysis.findings)) {
+            // Case-insensitive check for findings
+            const findingsLower = analysis.findings.map((f: string) => f.toLowerCase());
+            if (findingsLower.includes('weed')) acc.weeds++;
+            if (findingsLower.includes('bird droppings')) acc.birdDroppings++;
           }
         }
       }
@@ -1243,7 +1247,7 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                   activeTab === 'health' ? "bg-white text-violet-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
                 )}
               >
-                Health Index
+                ดัชนีสุขภาพ
               </button>
               <button 
                 onClick={() => {
@@ -1801,9 +1805,9 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                             ) : img.analysis ? (
                               <span className={cn(
                                 "w-6 h-6 rounded-full flex items-center justify-center shadow-lg",
-                                img.analysis.error ? "bg-amber-500 text-white" : (img.analysis.status === 'Green' ? "bg-emerald-500 text-white" : "bg-rose-500 text-white")
+                                img.analysis.error ? "bg-amber-500 text-white" : ((img.analysis.status || '').toLowerCase() === 'green' ? "bg-emerald-500 text-white" : "bg-rose-500 text-white")
                               )}>
-                                {img.analysis.error ? <AlertCircle size={14} /> : (img.analysis.status === 'Green' ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />)}
+                                {img.analysis.error ? <AlertCircle size={14} /> : ((img.analysis.status || '').toLowerCase() === 'green' ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />)}
                               </span>
                             ) : (
                               <span className="w-6 h-6 rounded-full bg-slate-200 text-slate-400 flex items-center justify-center shadow-lg">
@@ -1833,8 +1837,11 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                                     </span>
                                   ))
                                 ) : (
-                                  <span className="text-[8px] bg-emerald-50 text-emerald-600 px-1.5 py-0.5 rounded font-bold border border-emerald-100">
-                                    สะอาดปกติ
+                                  <span className={cn(
+                                    "text-[8px] px-1.5 py-0.5 rounded font-bold border",
+                                    (img.analysis.status || '').toLowerCase() === 'green' ? "bg-emerald-50 text-emerald-600 border-emerald-100" : "bg-slate-50 text-slate-500 border-slate-100"
+                                  )}>
+                                    {(img.analysis.status || '').toLowerCase() === 'green' ? 'สะอาดปกติ' : 'วิเคราะห์แล้ว'}
                                   </span>
                                 )}
                               </div>
