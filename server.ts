@@ -112,8 +112,31 @@ async function getAnalysisForFile(fileId: string) {
     status: data.status,
     findings: data.findings || [],
     summary: data.summary,
-    analyzedAt: data.analyzed_at
+    analyzedAt: data.analyzed_at,
+    is_new: false
   } : null;
+}
+
+async function getAnalysisForFolder(folderId: string) {
+  const { data, error } = await supabase
+    .from('analysis_results')
+    .select('*')
+    .eq('folder_path', folderId);
+  
+  if (error) {
+    console.error("Error fetching analysis for folder:", error);
+    return [];
+  }
+  return data.map(item => ({
+    fileId: item.file_path,
+    fileName: item.file_name,
+    folderId: item.folder_path,
+    status: item.status,
+    findings: item.findings || [],
+    summary: item.summary,
+    analyzedAt: item.analyzed_at,
+    is_new: false
+  }));
 }
 
 async function getAnalysisHistory(limit = 100) {
@@ -134,7 +157,8 @@ async function getAnalysisHistory(limit = 100) {
     status: item.status,
     findings: item.findings || [],
     summary: item.summary,
-    analyzedAt: item.analyzed_at
+    analyzedAt: item.analyzed_at,
+    is_new: false
   }));
 }
 
@@ -304,7 +328,10 @@ app.get("/api/drive/folder/*", async (req: any, res: any) => {
   try {
     const { data: files, error } = await supabase.storage.from('INSPECTIONS').list(folderPath);
     if (error) throw error;
-    const history = await getAnalysisHistory();
+    
+    // Fetch analysis results specifically for this folder to ensure all cached results are found
+    const history = await getAnalysisForFolder(folderPath);
+    
     const mergedImages = (files || []).filter(f => f.metadata?.mimetype?.startsWith('image/')).map(img => {
       const filePath = `${folderPath}/${img.name}`;
       const analysis = history.find(h => h.fileId === filePath);
@@ -359,7 +386,7 @@ app.post("/api/analyze-image", async (req: any, res: any) => {
     }) as any;
 
     const analysis = JSON.parse(genResult.response.text() || '{}');
-    const finalResult = { fileId, fileName, folderId, ...analysis };
+    const finalResult = { fileId, fileName, folderId, ...analysis, is_new: true };
     await saveAnalysisResult(finalResult);
     res.json(finalResult);
   } catch (error: any) {
@@ -442,7 +469,12 @@ app.post("/api/analyze-substation", async (req: any, res: any) => {
     }
 
     // Simplified monthly analysis: use aggregate of individual results if available, or analyze a few
-    const history = await getAnalysisHistory();
+    const history = [];
+    for (const fPath of targetFolders) {
+      const folderHistory = await getAnalysisForFolder(fPath);
+      history.push(...folderHistory);
+    }
+    
     const individualResults = [];
     for (const img of allImages.slice(0, 10)) {
       const filePath = `${img.folderPath}/${img.name}`;

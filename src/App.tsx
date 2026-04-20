@@ -1761,6 +1761,13 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                     <h4 className="text-2xl font-bold text-violet-600">{analysisSummary.birdDroppings}</h4>
                   </Card>
                 </div>
+                
+                {imagesInFolder.some(img => img.analysis && !img.analysis.is_new) && (
+                  <div className="mb-4 px-4 py-2 bg-emerald-50 border border-emerald-100 rounded-xl flex items-center gap-2">
+                    <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                    <p className="text-xs font-bold text-emerald-600">โหลดผลวิเคราะห์เดิมจากฐานข้อมูลแล้ว {imagesInFolder.filter(img => img.analysis && !img.analysis.is_new).length} ภาพ</p>
+                  </div>
+                )}
 
                 {isFetchingImages ? (
                   <div className="flex flex-col items-center justify-center py-20 gap-4">
