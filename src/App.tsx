@@ -1241,25 +1241,16 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                 ความคืบหน้า
               </button>
               <button 
-                onClick={() => setActiveTab('health')}
+                onClick={() => {
+                  setActiveTab('health');
+                  fetchAnalysisHistory();
+                }}
                 className={cn(
                   "px-4 py-2 rounded-lg text-xs font-bold transition-all",
                   activeTab === 'health' ? "bg-white text-violet-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
                 )}
               >
-                ดัชนีสุขภาพ
-              </button>
-              <button 
-                onClick={() => {
-                  setActiveTab('history');
-                  fetchAnalysisHistory();
-                }}
-                className={cn(
-                  "px-4 py-2 rounded-lg text-xs font-bold transition-all",
-                  activeTab === 'history' ? "bg-white text-violet-600 shadow-sm" : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                ประวัติวิเคราะห์
+                ดัชนีสุขภาพ & ประวัติ
               </button>
             </div>
           </div>
@@ -1289,7 +1280,7 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
           </div>
         </div>
 
-        {activeTab === 'progress' ? (
+        {activeTab === 'progress' && (
           <>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
           <div key="total" className="cursor-pointer" onClick={() => setShowInspectedModal(true)}>
@@ -1487,8 +1478,11 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
           </div>
         </Card>
           </>
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+        )}
+
+        {activeTab === 'health' && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
             {SUBSTATIONS.map(sub => {
               const health = healthIndex.find(h => h.substation_name === sub.name);
               const statusColor = health?.status === 'Red' ? 'bg-rose-500' : (health?.status === 'Green' ? 'bg-emerald-500' : 'bg-slate-200');
@@ -1582,12 +1576,13 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
               );
             })}
           </div>
-        )}
 
-        {activeTab === 'history' && (
-          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden mb-12">
             <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-white sticky top-0 z-10">
-              <h3 className="font-bold text-slate-900">ประวัติการวิเคราะห์รูปภาพด้วย AI</h3>
+              <div className="flex flex-col">
+                <h3 className="font-bold text-slate-900">ประวัติการวิเคราะห์รูปภาพด้วย AI</h3>
+                <p className="text-[10px] text-slate-400 font-medium">ภาพที่เคยวิเคราะห์แล้วจะถูกจดจำไว้ในระบบ ไม่ต้องเสียค่าใช้จ่ายวิเคราะห์ซ้ำ</p>
+              </div>
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -1596,7 +1591,7 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                 className="gap-2"
               >
                 <RefreshCw size={14} className={loadingHistory ? "animate-spin" : ""} />
-                รีเฟรชข้อมูล
+                รีเฟรชประวัติ
               </Button>
             </div>
             
@@ -1627,9 +1622,18 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
                     </tr>
                   ) : (
                     analysisHistory.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                      <tr 
+                        key={idx} 
+                        className="hover:bg-slate-50/50 transition-colors cursor-pointer group"
+                        onClick={() => {
+                          const subName = item.fileName.split('_')[0] || "สถานีไฟฟ้า";
+                          setSelectedSubstationForAnalysis(subName);
+                          setImagesInFolder([]);
+                          fetchImagesInFolder(item.folderId);
+                        }}
+                      >
                         <td className="px-6 py-4">
-                          <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 relative overflow-hidden">
+                          <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center text-slate-400 relative overflow-hidden group-hover:bg-violet-50 group-hover:text-violet-500 transition-colors">
                             <ImageIcon size={20} />
                           </div>
                         </td>
@@ -1678,6 +1682,7 @@ const DashboardPage = ({ onBack }: { onBack: () => void }) => {
               <p className="text-[10px] text-slate-400 uppercase font-bold">แสดงผลการวิเคราะห์ล่าสุด {analysisHistory.length} รายการ</p>
             </div>
           </div>
+          </>
         )}
       </div>
 
